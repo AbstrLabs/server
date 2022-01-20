@@ -177,8 +177,9 @@ func preInit(w http.ResponseWriter, req *http.Request) {
 	blob := make([]byte, len(km.Blob))
 	copy(blob, km.Blob)
 	key := *km.PrivKey
+	masterKey := *km.MasterKey
 	km.Unlock()
-	out := s.PreInit(body, blob, key)
+	out := s.PreInit(body, blob, key, masterKey)
 	writeResponse(out, w)
 }
 
