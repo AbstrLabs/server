@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -602,8 +603,31 @@ func ECDSASign(key *ecdsa.PrivateKey, items ...[]byte) []byte {
 	return signature
 }
 
+func Ed25519Sign(key *ed25519.PrivateKey, items ...[]byte) []byte {
+	var concatAll []byte
+	for _, item := range items {
+		concatAll = append(concatAll, item...)
+	}
+	digest_to_be_signed := Sha256(concatAll)
+	return ed25519.Sign(*key, digest_to_be_signed)
+}
+
 func ECDSAPubkeyToPEM(key *ecdsa.PublicKey) []byte {
 	derBytes, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		fmt.Println(err)
+		panic("x509.MarshalPKIXPublicKey")
+	}
+	block := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: derBytes,
+	}
+	pubKeyPEM := pem.EncodeToMemory(block)
+	return pubKeyPEM
+}
+
+func Ed25519PubkeyToPEM(key *ed25519.PublicKey) []byte {
+	derBytes, err := x509.MarshalPKIXPublicKey(*key)
 	if err != nil {
 		fmt.Println(err)
 		panic("x509.MarshalPKIXPublicKey")

@@ -2,6 +2,7 @@ package key_manager
 
 import (
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/binary"
@@ -18,11 +19,10 @@ type KeyManager struct {
 	// Blob contains validFrom|validUntil|pubkey|signature
 	// the client will verify the signature (made with the masterKey)
 	Blob []byte
-	// PrivKey is the ephemeral key used to sign a session. Also used
-	// in ECDH with the the client to derive symmetric keys to encrypt the communication
+	// used in ECDH with the the client to derive symmetric keys to encrypt the communication
 	PrivKey *ecdsa.PrivateKey
-	// masterKey is used to sign ephemeral keys
-	masterKey *ecdsa.PrivateKey
+	// masterKey is used to sign a session. Also used
+	MasterKey *ed25519.PrivateKey
 	// MasterPubKeyPEM is masterKey public key in PEM format
 	MasterPubKeyPEM []byte
 	// validMins is how many minutes an ephemeral key is valid for signing
@@ -35,13 +35,12 @@ func (k *KeyManager) Init() {
 }
 
 func (k *KeyManager) generateMasterKey() {
-	// masterKey is only used to sign ephemeral keys
-	var err error
-	k.masterKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	p, priv, err := ed25519.GenerateKey(rand.Reader)
+	k.MasterKey = &priv
 	if err != nil {
 		log.Fatalln("Could not create keys:", err)
 	}
-	k.MasterPubKeyPEM = u.ECDSAPubkeyToPEM(&k.masterKey.PublicKey)
+	k.MasterPubKeyPEM = u.Ed25519PubkeyToPEM(&p)
 	curDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		panic(err)
@@ -80,7 +79,7 @@ func (k *KeyManager) rotateEphemeralKeys() {
 			log.Fatalln("Could not create keys:", err)
 		}
 		pubkey := u.Concat([]byte{0x04}, u.To32Bytes(newKey.PublicKey.X), u.To32Bytes(newKey.PublicKey.Y))
-		signature := u.ECDSASign(k.masterKey, validFrom, validUntil, pubkey)
+		signature := u.Ed25519Sign(k.MasterKey, validFrom, validUntil, pubkey)
 		blob := u.Concat(validFrom, validUntil, pubkey, signature)
 		k.Lock()
 		k.Blob = blob

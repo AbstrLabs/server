@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/binary"
@@ -61,7 +62,7 @@ type Session struct {
 	// clientKey is a symmetric key used to decrypt messages FROM the client
 	clientKey []byte
 	// signingKey is used to sign the notarization session
-	signingKey *ecdsa.PrivateKey
+	signingKey *ed25519.PrivateKey
 	// ghashOTNeeded is the count of OT bits which the client tells the notary
 	// to prepare for 2PC of ghash for the client request
 	ghashOTNeeded int
@@ -120,14 +121,14 @@ func (s *Session) sequenceCheck(seqNo int) {
 	s.msgsSeen = append(s.msgsSeen, seqNo)
 }
 
-func (s *Session) PreInit(body, blob []byte, signingKey ecdsa.PrivateKey) []byte {
+func (s *Session) PreInit(body, blob []byte, ecdsaKey ecdsa.PrivateKey, signingKey ed25519.PrivateKey) []byte {
 	s.sequenceCheck(1)
 	s.g = new(garbler.Garbler)
 	s.e = new(evaluator.Evaluator)
 	s.signingKey = &signingKey
 	// the first 64 bytes are client pubkey for ECDH
 	o := 0
-	s.clientKey, s.notaryKey = s.getSymmetricKeys(body[o:o+64], &signingKey)
+	s.clientKey, s.notaryKey = s.getSymmetricKeys(body[o:o+64], &ecdsaKey)
 	o += 64
 	c5count := int(new(big.Int).SetBytes(body[o : o+2]).Uint64())
 	o += 2
@@ -1323,7 +1324,7 @@ func (s *Session) CommitHash(encrypted []byte) []byte {
 	hisPMSShareHash := body[64:96]
 	timeBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(timeBytes, uint64(time.Now().Unix()))
-	signature := u.ECDSASign(s.signingKey,
+	signature := u.Ed25519Sign(s.signingKey,
 		hisCommitHash,
 		hisKeyShareHash,
 		hisPMSShareHash,
